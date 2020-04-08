@@ -1,0 +1,19 @@
+## import:
+import("zoo")
+importFrom("stats", "coef", "dnorm", "fitted", "logLik", "nlminb", "optimHess", "residuals", "rnorm", "vcov", "window")
+
+export(
+  ##main functions:
+  "garchxSim", "garchxRecursion", "garchxObjective", "garchx",
+
+  ##extraction functions:
+  "coef.garchx", "fitted.garchx", "logLik.garchx", "print.garchx", "residuals.garchx", "vcov.garchx"
+)
+
+##methods for class garchx:
+S3method("coef", "garchx")
+S3method("fitted", "garchx")
+S3method("logLik", "garchx")
+S3method("print", "garchx")
+S3method("residuals", "garchx")
+S3method("vcov", "garchx")
