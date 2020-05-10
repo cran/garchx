@@ -42,13 +42,20 @@ function(pars, aux)
     ##if(c.code):
     if(aux$c.code){
 
+#      ##development version:
 #      tmp <- GARCHXRECURSION(as.integer(aux$garchOrder),
-#        as.integer(aux$y.n), as.integer(aux$garchOrder),
+#        as.integer(aux$recursion.n), as.integer(aux$garchOrder),
 #        as.numeric(sigma2), as.numeric(parsgarch),
 #        as.numeric(innov))
-##      tmp <- GARCHXRECURSION1(as.integer(aux$y.n), as.numeric(sigma2),
-##        as.numeric(parsgarch), as.numeric(innov))
-#      sigma2 <- tmp$sigma2
+
+      ##package version:
+      tmp <- .C("GARCHXRECURSION", iStart = as.integer(aux$garchOrder),
+        iEnd = as.integer(aux$recursion.n), iGARCHorder = as.integer(aux$garchOrder),
+        sigma2 = as.double(sigma2), parsgarch = as.double(parsgarch),
+        innov = as.double(innov), PACKAGE = "garchx")
+
+      ##sigma2:
+      sigma2 <- tmp$sigma2
 
     }else{
 
@@ -58,7 +65,9 @@ function(pars, aux)
           sigma2[i] <- parsgarch * sigma2[i-1] + innov[i]
         }
       }else{
-        for( i in c(1+aux$garchOrder):aux$y.n ){
+        for( i in c(1+aux$garchOrder):aux$recursion.n ){
+#OLD:
+#        for( i in c(1+aux$garchOrder):aux$y.n ){
           sigma2[i] <-
             sum(parsgarch*sigma2[ c(i-1):c(i-aux$garchOrder) ]) + innov[i]
         }

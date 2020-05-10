@@ -20,7 +20,7 @@ function(n, intercept=0.2, arch=0.1, garch=0.8,
   ##===============
   if(maxOrder > 0){
 
-    ##innovations:
+    ##innovations, Ineg, z2:
     if(is.null(backcast.values$innovations)){
       backcast.values$innovations <- rep(0, maxOrder) 
     }
@@ -73,7 +73,7 @@ function(n, intercept=0.2, arch=0.1, garch=0.8,
     }
 
     if(asymOrder > 0){
-      asymsum <- asym*Ineg[c(i-1):c(i-asymOrder)]*z2[c(i-1):c(i-asymOrder)]*sigma2[c(i-1):c(i-asymOrder)]
+      asymsum <- sum(asym*Ineg[c(i-1):c(i-asymOrder)]*z2[c(i-1):c(i-asymOrder)]*sigma2[c(i-1):c(i-asymOrder)])
     }
 
     sigma2[i] <- archsum + garchsum + asymsum + xregsum[i]

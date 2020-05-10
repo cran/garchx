@@ -1,23 +1,31 @@
 garchx <-
 function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
-  xreg=NULL, initial.values=NULL, backcast.values=NULL,
-  lower=0, upper=+Inf, control=list(), hessian.control=list(),
-  solve.tol=.Machine$double.eps, c.code=FALSE, penalty.value=NULL,
-  sigma2.min=.Machine$double.eps, objective.fun=1, verbose=TRUE)
+  xreg=NULL, vcov.type=c("ordinary","robust"), initial.values=NULL,
+  backcast.values=NULL, lower=0, upper=+Inf, control=list(),
+  hessian.control=list(), solve.tol=.Machine$double.eps,
+  c.code=TRUE, penalty.value=NULL, sigma2.min=.Machine$double.eps,
+  objective.fun=1, turbo=FALSE)
 {
+  ##sys.call:
+  sysCall <- sys.call()
+  
   ##create auxiliary list, date, parnames:
   aux <- list()
   aux$date <- date()
+  aux$sys.call <- sysCall
   parnames <- "intercept"
 
-  ##y related:
+  ##y argument
+  ##----------
+  
   aux$y.name <- deparse(substitute(y))
   y <- na.trim(as.zoo(y))
   aux$y.n <- NROW(y)
-  aux$y.coredata <- coredata(y)
+  aux$recursion.n <- aux$y.n #used in recursion only; needed for robust vcov
+  aux$y.coredata <- as.vector(coredata(y)) #in case y is matrix (e.g. due to xts)
   aux$y.index <- index(y)
   aux$y2 <- aux$y.coredata^2
-  aux$y2mean <- mean(aux$y2)
+  aux$y2mean <- mean(aux$y2) #default garch backcast value
 
   ##order argument
   ##--------------
@@ -26,13 +34,16 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   if( length(order)>0 ){
     aux$order[ 1:length(order) ] <- order[ 1:length(order) ]
   }
-  if(is.null(arch) && aux$order[1]>0){ arch <- 1:aux$order[1] }
-  if(is.null(garch) && aux$order[2]>0){ garch <- 1:aux$order[2] }
+  if(is.null(garch) && aux$order[1]>0){ garch <- 1:aux$order[1] }
+  if(is.null(arch) && aux$order[2]>0){ arch <- 1:aux$order[2] }
   if(is.null(asym) && aux$order[3]>0){ asym <- 1:aux$order[3] }
   
   ##arch, garch, asym arguments
   ##---------------------------
-  
+
+  ## note: the K refers to how many arch/asym/garch terms there are,
+  ## NOT the arch/asym/garch order
+
   ##arch:
   if(is.null(arch)){
     aux$archK <- 0
@@ -41,6 +52,7 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
     aux$archK <- length(arch)
   }
   aux$arch <- arch
+  aux$archOrder <- ifelse(is.null(aux$arch), 0, max(aux$arch))
 
   ##garch:
   if(is.null(garch)){
@@ -60,10 +72,13 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
     aux$asymK <- length(asym)
   }
   aux$asym <- asym
+  aux$asymOrder <- ifelse(is.null(aux$asym), 0, max(aux$asym))
 
   ##xregK, maxpqr, maxpqrpluss1:
   aux$xregK <- ifelse(is.null(xreg), 0, NCOL(xreg))
-  aux$maxpqr <- max(aux$archK,aux$garchK,aux$asymK)
+  aux$maxpqr <- max(aux$archOrder,aux$garchOrder,aux$asymOrder)
+#OLD (erroneous):
+#  aux$maxpqr <- max(aux$archK,aux$garchK,aux$asymK)
   aux$maxpqrpluss1 <- aux$maxpqr + 1
   
   ##parameter indices and names
@@ -71,7 +86,7 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   
   ##arch:
   if( aux$archK>0 ){
-    aux$archIndx <- 2:c( length(arch)+1)
+    aux$archIndx <- 2:c( length(arch)+1 )
     parnames <- c(parnames, paste0("arch", aux$arch))
   }else{ aux$archIndx <- 0 }
   
@@ -126,9 +141,14 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
 
   ##arch matrix:
   if( aux$archK>0 ){
-    backvals <- ifelse(is.null(backcast.values),
-      aux$y2mean, backcast.values)
-    aux$y2matrix <- matrix(backvals, aux$y.n, aux$archK)
+    aux$y2matrix <- matrix(aux$y2mean, aux$y.n, aux$archK)
+#    colnames(aux$y2matrix) <- paste0("arch",aux$arch)
+#    if( !is.null(backcast.values$arch) ){
+#      for(i in 1:aux$archK ){
+#        aux$y2matrix[ 1:aux$arch[i],i ] <-
+#          backcast.values$arch[ 1:aux$arch[i] ]
+#      }
+#    }
     for(i in 1:aux$archK){
       aux$y2matrix[ c(1+aux$arch[i]):aux$y.n ,i] <-
         aux$y2[ 1:c(aux$y.n-aux$arch[i]) ] 
@@ -137,19 +157,25 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
 
   ##garch vector:
   if( aux$garchK>0 ){
-    backvals <- ifelse(is.null(backcast.values),
-      aux$y2mean, backcast.values)
-    aux$sigma2 <- rep(backvals, aux$y.n)
+    aux$sigma2 <- rep(aux$y2mean, aux$y.n)
+    if( !is.null(backcast.values) ){
+      aux$sigma2[1:aux$garchOrder] <- backcast.values
+#      aux$sigma2[1:length(backcast.values$garch)] <- backcast.values$garch
+    }        
   }
 
   ##asym matrix:    
   if( aux$asymK>0 ){
-    if(is.null(backcast.values)){
-      aux$Ineg <- as.numeric(aux$y.coredata < 0)
-      aux$Inegy2 <- aux$Ineg*aux$y2
-      backvals <- mean(aux$Inegy2)
-    }else{ backvals <- backcast.values }
+    aux$Ineg <- as.numeric(aux$y.coredata < 0)
+    aux$Inegy2 <- aux$Ineg*aux$y2
+    backvals <- mean(aux$Inegy2)
     aux$Inegy2matrix <- matrix(backvals, aux$y.n, aux$asymK)
+#    if( !is.null(backcast.values$asym) ){
+#      for(i in 1:aux$asymK ){
+#        aux$Inegy2matrix[ 1:aux$asym[i],i ] <-
+#          backcast.values$asym[ 1:aux$asym[i] ]
+#      }
+#    }
     for(i in 1:aux$asymK){
       aux$Inegy2matrix[ c(1+aux$asym[i]):aux$y.n ,i] <-
         aux$Inegy2[ 1:c(aux$y.n-aux$asym[i]) ] 
@@ -178,21 +204,18 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
     if( aux$archK>0 ){
       aux$initial.values <-
         c(aux$initial.values, rep(0.1/aux$archK, aux$archK)/aux$arch)
-#        c(aux$initial.values, rep(0.1/aux$archK, aux$archK))
     }
 
     ##garch:
     if( aux$garchK>0 ){
       aux$initial.values <-
         c(aux$initial.values, rep(0.7/aux$garchK, aux$garchK)/aux$garch)
-#        c(aux$initial.values, rep(0.7/aux$garchK, aux$garchK))
     }
 
     ##asym:
     if( aux$asymK>0 ){
       aux$initial.values <-
         c(aux$initial.values, rep(0.02, aux$asymK)/aux$asym)
-#        c(aux$initial.values, rep(0.02, aux$asymK))
     }
 
     ##xreg:
@@ -217,7 +240,6 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   aux$c.code <- c.code
   aux$sigma2.min <- sigma2.min
   aux$objective.fun <- objective.fun
-#  aux$require.stability <- require.stability
   aux$penalty.value <- penalty.value
   if(is.null(aux$penalty.value)){
     aux$penalty.value <- garchxObjective(aux$initial.values, aux)
@@ -225,47 +247,38 @@ function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
 
   ##estimation
   ##----------
-  
+
   result <- nlminb(aux$initial.values, garchxObjective,
     aux=aux, control=aux$control, upper=aux$upper, lower=aux$lower)
   names(result$par) <- parnames
-   
-  ##verbose output?
-  ##---------------
-  if(verbose){                               
+  aux <- c(aux, result)
+          
+  ##not turbo?
+  ##----------
+  if(!turbo){                               
 
     ##fitted values, residuals:
-    sigma2 <- garchxRecursion(as.numeric(result$par), aux)
+    sigma2 <- garchxRecursion(as.numeric(aux$par), aux)
     residStd <- aux$y.coredata/sqrt(sigma2)
     ##convert to zoo:
     sigma2 <- zoo(sigma2, order.by=aux$y.index)
     residStd <- zoo(residStd, order.by=aux$y.index)
     ##shorten vectors, add to result:
-    result$fitted <- sigma2[ aux$maxpqrpluss1:aux$y.n ]
-    result$residuals <- residStd[ aux$maxpqrpluss1:aux$y.n ]    
+    aux$fitted <- sigma2[ aux$maxpqrpluss1:aux$y.n ]
+    aux$residuals <- residStd[ aux$maxpqrpluss1:aux$y.n ]    
 
     ##hessian:    
-    result$hessian <- optimHess(result$par, garchxObjective,
+    aux$hessian <- optimHess(aux$par, garchxObjective,
       aux=aux, control=aux$hessian.control)  
 
-    ##kappahat:
-    if(aux$objective.fun==0){
-      kappahat <- sum( aux$ynotzero*result$residuals^4)/sum(aux$ynotzero)
-    }
-    if(aux$objective.fun==1){
-      kappahat <- mean( result$residuals^4 )
-    }
+    ##vcov:
+    aux$vcov <- vcov.garchx(aux, vcov.type=vcov.type)
 
-    ##vcov: divide by nobs for finite sample version
-    nobs <- length(result$residuals)
-    result$vcov <-
-      (kappahat - 1)*solve(result$hessian, tol=aux$solve.tol)/nobs
+  } #close if(!turbo)
 
-  }
-
-  ##return result:
-  result <- c(aux, result)
-  class(result) <- "garchx"
-  return(result)
+  ##result
+  ##------
+  class(aux) <- "garchx"
+  return(aux)
 
 }
