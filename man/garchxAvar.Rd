@@ -18,7 +18,7 @@
   \item{asym}{\code{NULL} or integer \code{vector} with the lags of the asymmetry terms to include. Works in the same way as the \code{asym} argument in the \code{\link{garchx}} function}
   \item{xreg}{\code{NULL}, or a \code{vector} or \code{matrix} with the covariates of the model. Works in the same way as the \code{xreg} argument in the \code{\link{garchx}} function}
   \item{vcov.type}{\code{character} that determines the type of coefficient-covariance}
-  \item{innovations}{\code{NULL} or a \code{vector} with the standardised innovations to use. If \code{NULL}, then the innovations are standard norm}
+  \item{innovations}{\code{NULL} or a \code{vector} with the standardised innovations to use. If \code{NULL}, then the innovations are standard normal}
   \item{Eeta4}{\code{numeric}, the fourth moment of the innovations. If \code{NULL}, then the value is estimated internally. Note: The value of Eeta4 is only used if \code{vcov.type = "ordinary"}, otherwise it is ignored }
   \item{n}{integer, the number of observations to use in the simulations}
   \item{objective.fun}{integer equal to 1 or 0 that determines the type of objective function to use, see the code of \code{\link{garchxObjective}} }

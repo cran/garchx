@@ -12,8 +12,8 @@ Flexible and robust estimation and inference of GARCH(p,q,r)-X models, where p i
   \tabular{ll}{
   Package: \tab garchx\cr
   Type: \tab Package\cr
-  Version: \tab 1.1\cr
-  Date: \tab 2020-05-10\cr
+  Version: \tab 1.2\cr
+  Date: \tab 2021-01-23\cr
   License: \tab GPL-2\cr
   }
 }

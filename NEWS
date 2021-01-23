@@ -1,10 +1,16 @@
+Version 1.2 (23 January 2021):
+==============================
+
+* fix: the initial.values argument in garchx() can now be non-NULL
+
+
 Version 1.1 (10 May 2020):
 ==========================
 
 * garchx:
 - c.code argument: new default TRUE
 - new argument: vcov.type
-- the arch and garch orders changed place in the order argument, i.e. order[1] now refers to the garch order, and order[2] now refers to the arch order
+- for consistency with the garch() function in the 'tseries' package, the arch and garch orders changed place in the order argument, i.e. order[1] now refers to the garch order, and order[2] now refers to the arch order
 - the 'verbose' argument (w/default TRUE) has been renamed to 'turbo' (w/default FALSE)
 
 * garchxRecursion: improved speed when the garch order is 1 or greater, since the function now uses compiled c-code for the recursion

@@ -1,17 +1,16 @@
 Package: garchx
 Type: Package
 Title: Flexible and Robust GARCH-X Modelling
-Version: 1.1
-Date: 2020-05-10
+Version: 1.2
+Date: 2021-01-23
 Author: Genaro Sucarrat [aut, cre]
 Maintainer: Genaro Sucarrat <gsucarrat@gmail.com>
-Description: Flexible and robust estimation and inference of generalised autoregressive conditional heteroscedasticity (GARCH) models with covariates based on the results by Francq and Thieu (2018) <doi:10.1017/S0266466617000512>. Coefficients can straightforwardly be set to zero by omission, and quasi maximum likelihood methods ensure estimates are generally consistent and inference valid, even when the standardised innovations are non-normal and/or dependent over time.
+Description: Flexible and robust estimation and inference of generalised autoregressive conditional heteroscedasticity (GARCH) models with covariates ('X') based on the results by Francq and Thieu (2018) <doi:10.1017/S0266466617000512>. Coefficients can straightforwardly be set to zero by omission, and quasi maximum likelihood methods ensure estimates are generally consistent and inference valid, even when the standardised innovations are non-normal and/or dependent over time.
 License: GPL (>= 2)
 Depends: R (>= 3.4.0), zoo
 BugReports: https://github.com/gsucarrat/garchx/issues
-URL: https://CRAN.R-project.org/package=garchx,
-        http://www.sucarrat.net/
+URL: http://www.sucarrat.net/
 NeedsCompilation: yes
-Packaged: 2020-05-10 12:46:47 UTC; sucarrat
+Packaged: 2021-01-23 16:33:15 UTC; sucarrat
 Repository: CRAN
-Date/Publication: 2020-05-10 14:00:03 UTC
+Date/Publication: 2021-01-23 17:00:02 UTC
