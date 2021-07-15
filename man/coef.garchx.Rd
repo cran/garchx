@@ -20,7 +20,7 @@
   \method{logLik}{garchx}(object, ...)
   \method{nobs}{garchx}(object, ...)
   \method{predict}{garchx}(object, n.ahead = 10, newxreg = NULL,
-    newindex = NULL, n.sim = 5000, verbose = FALSE, ...)
+    newindex = NULL, n.sim = NULL, verbose = FALSE, ...)
   \method{print}{garchx}(x, ...)
   \method{quantile}{garchx}(x, probs=0.025, names = TRUE, type = 7, as.zoo = TRUE, ...)
   \method{residuals}{garchx}(object, as.zoo = TRUE, ...)
@@ -35,7 +35,7 @@
   \item{n.ahead}{\code{integer} that determines how many steps ahead predictions should be generated}
   \item{newxreg}{\code{vector} or \code{matrix} with the out-of-sample regressor values}
   \item{newindex}{\code{zoo}-index for the out-of-sample predictions. If \code{NULL} (default), then \code{1:n.ahead} is used}
-  \item{n.sim}{\code{integer}, the number of simulations}
+  \item{n.sim}{\code{NULL} or an \code{integer}, the number of simulations}
   \item{verbose}{\code{logical}. If \code{TRUE}, then the simulations - in addition to the predictions - are returned}
   \item{probs}{\code{vector} of probabilities}
   \item{names}{\code{logical}, whether to return names or not}

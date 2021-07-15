@@ -1,3 +1,24 @@
+Version 1.3 (15 July 2021):
+===========================
+
+* garchx():
+- the non-default value on the backcast.values argument changed, see documentation
+- new argument: estimate
+- minor changes to the documentation
+
+* garchxObjective(): an additional (positivity) check of the parameters was added; the check is only undertaken when the xreg' argument in garchx() is not NULL
+
+* predict.garchx(): the default of the n.sim argument changed to NULL
+
+* toLatex(): minor changes to the print
+
+* print.garchx(): minor changes to the print
+
+* new functions: gdiff(), glag()
+
+* fix: the returned value from garchxSim(1, verbose=TRUE) is now a matrix
+
+
 Version 1.2 (23 January 2021):
 ==============================
 

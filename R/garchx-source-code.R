@@ -5,9 +5,9 @@
 ## TO DO LIST:
 ##
 ## ADD nobs and nonumber arguments to toLatex.garchx?
-## ADD power unequal to 2
 ## ADD CHRISTOPHERSEN TEST?
 ## ADD more densities
+## ADD power unequal to 2
 ##        
 ## 1 load libraries, startup message, compile C-code
 ##   GARCHRECURSION      #c-code recursion
@@ -32,6 +32,8 @@
 ##   vcov.garchx
 ##
 ## 4 additional functions:
+##   glag      #lag variable 
+##   gdiff     #diff variable
 ##   rmnorm    #draw from multivariate normal
 ##   ttest0    #t-test under nullity
 ##   waldtest0 #wald-test under nullity
@@ -47,7 +49,7 @@
 ##==============
 
 library(zoo)
-#library(inline)
+#library(inline) ##needed under development-mode
 
 ##for testing purposes (pre-package build):
 ##=========================================
@@ -72,7 +74,8 @@ library(zoo)
 ###remove txt from global environment:
 #rm(txt) 
 
-###C-code: garchx recursion
+###C-code (for development-mode): garchx recursion
+#library(inline)
 #mysig <- signature(iStart="integer", iEnd="integer",
 #  iGARCHorder="integer", sigma2="numeric", parsgarch="numeric",
 #  innov="numeric")
@@ -192,6 +195,11 @@ garchxSim <- function(n, intercept=0.2, arch=0.1, garch=0.8,
     y <- sigma*innovations
     result <- cbind(y, sigma, sigma2, Ineg, innovations)
     if(maxOrder > 0){ result <- result[-c(1:maxOrder),] }
+    ##ensure result is a matrix when n=1:
+    if(n==1){ 
+      result <- rbind(result)
+      rownames(result) <- NULL
+    }
   }else{
     sigma <- sqrt(sigma2)
     result <- sigma*innovations
@@ -546,8 +554,6 @@ garchxRecursion <- function(pars, aux)
         }
       }else{
         for( i in c(1+aux$garchOrder):aux$recursion.n ){
-#OLD:
-#        for( i in c(1+aux$garchOrder):aux$y.n ){
           sigma2[i] <-
             sum(parsgarch*sigma2[ c(i-1):c(i-aux$garchOrder) ]) + innov[i]
         }
@@ -562,7 +568,7 @@ garchxRecursion <- function(pars, aux)
   return(sigma2)
   ##note: this volatility contains the first observations
   ##(i.e. 1:aux$maxpqr), which should be deleted before
-  ##returnted by fitted(..) etc.
+  ##returned by fitted(..) etc.
 
 } ##close garchxRecursion function
   
@@ -574,14 +580,14 @@ garchxObjective <- function(pars, aux)
   ##initiate:
   parsOK <- TRUE; sigma2OK <- TRUE
   
-  ##check parameters:
+  ##check parameters for NAs:
   if( any(is.na(pars))){ parsOK <- FALSE  }
-#  if( any(is.na(pars)) || any(pars<aux$lower) || any(pars>aux$upper) ){
-#    parsOK <- FALSE
-#  }
-#  if( parsOK && aux$require.stability ){
-#    parsOK <- sum(pars[2:3]) < 1
-#  }
+  
+  ##check xreg parameters:
+  if( aux$xregK>0 ){
+    value <- pars[1] + sum(pars[aux$xregIndx])
+    if( value <= 0 ){ parsOK <- FALSE }
+  }
 
   ##compute and check sigma2:
   if( parsOK ){
@@ -618,7 +624,7 @@ garchxObjective <- function(pars, aux)
 garchx <- function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   xreg=NULL, vcov.type=c("ordinary","robust"), initial.values=NULL,
   backcast.values=NULL, lower=0, upper=+Inf, control=list(),
-  hessian.control=list(), solve.tol=.Machine$double.eps,
+  hessian.control=list(), solve.tol=.Machine$double.eps, estimate=TRUE,
   c.code=TRUE, penalty.value=NULL, sigma2.min=.Machine$double.eps,
   objective.fun=1, turbo=FALSE)
 {
@@ -641,7 +647,7 @@ garchx <- function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   aux$y.coredata <- as.vector(coredata(y)) #in case y is matrix (e.g. due to xts)
   aux$y.index <- index(y)
   aux$y2 <- aux$y.coredata^2
-  aux$y2mean <- mean(aux$y2) #default garch backcast value
+  aux$y2mean <- mean(aux$y2) #default garch backcast value if is.null(backcast.values)
 
   ##order argument
   ##--------------
@@ -742,6 +748,14 @@ garchx <- function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
     parnames <- c(parnames, xregNames)
   }else{ aux$xregIndx <- 0 }
 
+  ##backcast value:
+  ##---------------
+  if( is.null(backcast.values) ){
+    backcast.values <- aux$y2mean
+  }    
+  if( length(backcast.values)!=1 ) stop("length(backcast.values) must be 1")
+  if( backcast.values < 0 ) stop("'backcast.values' must be non-negative")
+  aux$backcast.values <- backcast.values
   
   ##auxiliary vectors and matrices
   ##------------------------------
@@ -838,7 +852,6 @@ garchx <- function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   ##miscellaneous
   ##-------------
 
-  aux$backcast.values <- backcast.values
   aux$upper <- upper
   aux$lower <- lower  
   aux$control <- control
@@ -855,14 +868,25 @@ garchx <- function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
   ##estimation
   ##----------
 
-  result <- nlminb(aux$initial.values, garchxObjective,
-    aux=aux, control=aux$control, upper=aux$upper, lower=aux$lower)
+  if(estimate){
+    result <- nlminb(aux$initial.values, garchxObjective,
+      aux=aux, control=aux$control, upper=aux$upper, lower=aux$lower)
+  }else{
+    result <- list()
+    result$par <- aux$initial.values
+    result$objective <- aux$penalty.value
+    result$convergence <- NA
+    result$iterations <- NA
+    result$evaluations <- NA
+    result$message <- "none, since 'estimate = FALSE'"
+  }  
   names(result$par) <- parnames
   aux <- c(aux, result)
   names(aux$initial.values) <- parnames          
 
   ##not turbo?
   ##----------
+
   if( !turbo ){                               
 
     ##fitted values, residuals:
@@ -886,6 +910,7 @@ garchx <- function(y, order=c(1,1), arch=NULL, garch=NULL, asym=NULL,
 
   ##result
   ##------
+
   class(aux) <- "garchx"
   return(aux)
 
@@ -940,7 +965,7 @@ nobs.garchx <- function(object, ...){
 ##==================================================
 ## predict:
 predict.garchx <- function(object, n.ahead=10, newxreg=NULL,
-  newindex=NULL, n.sim=5000, verbose=FALSE, ...)
+  newindex=NULL, n.sim=NULL, verbose=FALSE, ...)
 {
   ##coefficients
   coefs <- as.numeric(coef.garchx(object))
@@ -989,6 +1014,11 @@ predict.garchx <- function(object, n.ahead=10, newxreg=NULL,
       stop("NROW(newxreg) is unequal to n.ahead")
     }
     xreg <- cbind(newxreg) %*% xregCoef
+  }
+
+  ##n.sim:
+  if(is.null(n.sim)){
+    if(n.ahead==1){ n.sim <- 1 }else{ n.sim <- 5000 }
   }
 
   ##bootstrap the innovations
@@ -1044,7 +1074,7 @@ print.garchx <- function(x, ...){
   cat("Method: normal ML\n")
   cat("Coefficient covariance:", vcovComment, "\n")
   cat("Message (nlminb):", x$message, "\n")
-  cat("No. of observations:", x$y.n - x$maxpqr, "\n")
+  cat("No. of observations (fitted):", x$y.n - x$maxpqr, "\n")
   cat("Sample:", as.character(x$y.index[1]), "to", as.character(x$y.index[x$y.n]), 
       "\n")
   cat("\n")
@@ -1130,6 +1160,7 @@ toLatex.garchx <- function(object, digits=4, ...)
   ##-----------
 
   cat("%%note: the 'eqnarray' environment requires the 'amsmath' package\n")
+  cat("%%the model was estimated:", object$date, "\n")
   cat("\\begin{eqnarray}\n")
   cat(eqtxt)
   cat(goftxt)
@@ -1245,6 +1276,96 @@ vcov.garchx <- function(object, vcov.type=NULL, ...)
 ####################################################
 ## 4 ADDITIONAL FUNCTIONS
 ####################################################
+
+##==================================================
+## differentiate variable:
+gdiff <- function(x, lag=1, pad=TRUE, pad.value=NA)
+{
+  #check arguments:
+  if(lag < 1) stop("lag argument cannot be less than 1")
+
+  #zoo-related:
+  iszoo.chk <- is.zoo(x)
+  x <- as.zoo(x)
+  x.index <- index(x)
+  x <- coredata(x)
+  isvector <- is.vector(x)
+  x <- cbind(x)
+  x.n <- NROW(x)
+  x.ncol <- NCOL(x)
+
+  #do the differencing:
+  xdiff <- x - glag(x, k=lag, pad=TRUE, pad.value=NA)
+
+  #pad operations:
+  if(!pad){
+    xdiff <- na.trim(as.zoo(xdiff))
+    xdiff <- coredata(xdiff)
+  }else{
+    whereisna <- is.na(xdiff)
+    xdiff[whereisna] <- pad.value
+  }
+
+  #transform to vector?:
+  if(x.ncol==1 && isvector==TRUE){
+    xdiff <- as.vector(xdiff)
+  }
+
+  #if(is.zoo(x)):
+  if(iszoo.chk){
+    if(pad){
+      xdiff <- zoo(xdiff, order.by=x.index)
+    }else{
+      xdiff <- zoo(xdiff, order.by=x.index[c(lag+1):x.n])
+    } #end if(pad)
+  } #end if(iszoo.chk)
+
+  #out:
+  return(xdiff)
+} #end gdiff
+
+##==================================================
+## lag variable k times:
+glag <- function(x, k=1, pad=TRUE, pad.value=NA)
+{
+  #check arguments:
+  if(k < 1) stop("Lag order k cannot be less than 1")
+
+  #zoo-related:
+  iszoo.chk <- is.zoo(x)
+  x <- as.zoo(x)
+  x.index <- index(x)
+  x <- coredata(x)
+  isvector <- is.vector(x)
+  x <- cbind(x)
+  x.n <- NROW(x)
+  x.ncol <- NCOL(x)
+
+  #do the lagging:
+  x.nmink <- x.n - k
+  xlagged <- matrix(x[1:x.nmink,], x.nmink, x.ncol)
+  if(pad){
+    xlagged <- rbind( matrix(pad.value,k,x.ncol) , xlagged)
+  }
+
+  #transform to vector?:
+  if(x.ncol==1 && isvector==TRUE){
+    xlagged <- as.vector(xlagged)
+  }
+
+  #if(is.zoo(x)):
+  if(iszoo.chk){
+    if(pad){
+      xlagged <- zoo(xlagged, order.by=x.index)
+    }else{
+      xlagged <- zoo(xlagged, order.by=x.index[c(k+1):x.n])
+    } #end if(pad)
+  } #end if(iszoo.chk)
+
+  #out:
+  return(xlagged)
+} #end glag
+
 
 ##==================================================
 ## simulate random vectors from multivariate normal;
